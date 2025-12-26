@@ -1,0 +1,6 @@
+# .bazelrc
+# 禁用 Bzlmod（避免干扰）
+common --noenable_bzlmod
+build --action_env=PATH="/usr/local/cuda/bin:/usr/bin:/bin"
+build --cxxopt=-std=c++17
+test --cxxopt=-std=c++17
