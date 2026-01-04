@@ -1,16 +1,10 @@
-# 主 MMA 库 (.cu -> .o)
-genrule(
-    name = "mma_cu_o",
-    srcs = ["mma_m16n8k16.cu", "mma_m16n8k16.h"],
-    outs = ["mma_m16n8k16.cu.o"],
-    cmd = "nvcc -std=c++17  -Xcompiler -fPIC --expt-relaxed-constexpr -gencode=arch=compute_86,code=sm_86 -c $(location mma_m16n8k16.cu) -o $@",
-)
 
-cc_library(
-    name = "mma_lib",
-    srcs = [":mma_cu_o"],
-    hdrs = ["mma_m16n8k16.h"],
-    alwayslink = True,
+# PTX kernel 测试 (.cu -> .o)
+genrule(
+    name = "ptx_kernel_o",
+    srcs = ["ptx_kernel_test.cu", "ptx_functions.cuh"],
+    outs = ["ptx_kernel_o.cu.o"],
+    cmd = "nvcc -std=c++17  -Xcompiler -fPIC --expt-relaxed-constexpr -gencode=arch=compute_86,code=sm_86 -c $(location ptx_kernel_test.cu) -o $@",
 )
 
 test_deps = [
@@ -18,16 +12,15 @@ test_deps = [
     "@com_google_googletest//:gtest_main",
 ]
 
-
 # 单测二进制
 cc_test(
-    name = "mma_test",
+    name = "ptx_test",
     srcs = [
-        "mma_test.cc",
-        ":mma_cu_o",  # 链接 kernel 的 .o
+        "ptx_test.cc",
+        ":ptx_kernel_o",  # 链接 ptx kernel 的 .o
     ],
     deps = [
-        ":mma_lib",
         "@local_cuda//:cuda_runtime",
     ] + test_deps,
 )
+

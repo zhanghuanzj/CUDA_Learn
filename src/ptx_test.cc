@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 #include <cuda_runtime.h>
-#include "mma_m16n8k16.h"
+#include <vector>
 
+// 声明包装函数
+void launch_test_cp_async_kernel(const float* d_input, float* d_output, int num_elements);
 void launch_mma_test_kernel(float* matrix_a, float* matrix_b, float* matrix_d);
 
 void print_matrix(float *matrix, int M, int N) {
@@ -65,4 +67,54 @@ TEST(MmaTest, BasicHalf) {
     cudaFree(d_matrix_b);
     cudaFree(d_matrix_a);
     cudaFree(d_matrix_d);
+}
+
+
+// ========== 单测 ==========
+TEST(PtxKernelTest, BasicCopy) {
+    // 跳过非 Ampere+ 架构
+    int device;
+    cudaGetDevice(&device);
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, device);
+    if (prop.major < 8) {
+        GTEST_SKIP() << "cp.async requires SM 8.0+ (Ampere or newer)";
+    }
+
+    const int N = 256; // 必须是 4 的倍数（16字节对齐）
+    std::vector<float> h_input(N);
+    std::vector<float> h_output(N);
+
+    // 初始化输入数据
+    for (int i = 0; i < N; ++i) {
+        h_input[i] = static_cast<float>(i + 1);
+    }
+
+    // 分配设备内存
+    float *d_input, *d_output;
+    cudaMalloc(&d_input, N * sizeof(float));
+    cudaMalloc(&d_output, N * sizeof(float));
+
+    // 拷贝输入到设备
+    cudaMemcpy(d_input, h_input.data(), N * sizeof(float), cudaMemcpyHostToDevice);
+
+    // 启动 kernel
+    launch_test_cp_async_kernel(d_input, d_output, N);
+
+    // 同步并检查错误
+    cudaDeviceSynchronize();
+    ASSERT_EQ(cudaSuccess, cudaGetLastError());
+
+    // 拷贝结果回主机
+    cudaMemcpy(h_output.data(), d_output, N * sizeof(float), cudaMemcpyDeviceToHost);
+
+    // 验证结果
+    for (int i = 0; i < N; ++i) {
+        EXPECT_FLOAT_EQ(h_input[i], h_output[i]) 
+            << "Mismatch at index " << i;
+    }
+
+    // 清理
+    cudaFree(d_input);
+    cudaFree(d_output);
 }
